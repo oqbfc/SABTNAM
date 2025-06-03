@@ -9,14 +9,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/kamadatepicker/dist/kamadatepicker.min.css">
+    <script src="https://unpkg.com/kamadatepicker" defer></script>
     <style>
         html {
-            scroll-behavior: smooth; /* برای فعال کردن اسکرول نرم در کل صفحه */
+            scroll-behavior: smooth; 
         }
         body {
             font-family: 'Vazirmatn', sans-serif;
-            background-color: #121212; /* زمینه تیره اصلی */
-            color: #E0E0E0; /* رنگ متن روشن */
+            background-color: #121212; 
+            color: #E0E0E0; 
         }
         .qashqai-pattern-bg {
             background-color: #161616; 
@@ -36,7 +37,7 @@
             padding-bottom: 8px;
         }
         .btn-primary {
-            background-color: #FF0000; /* قرمز اصلی */
+            background-color: #FF0000; 
             color: white;
             transition: background-color 0.3s ease, transform 0.2s ease;
             position: relative; 
@@ -83,6 +84,9 @@
             border-color: #FF0000;
             outline: none;
             box-shadow: 0 0 0 2px rgba(255, 0, 0, 0.5);
+        }
+        .form-input.error-border { /* کلاس برای بردر قرمز در صورت خطای کد ملی تکراری */
+            border-color: red !important;
         }
         .form-label {
             color: #B0B0B0;
@@ -369,14 +373,11 @@
         </div>
     </footer>
 
-    <script src="https://unpkg.com/kamadatepicker"></script>
+    
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // این اطمینان حاصل می کند که DOM به طور کامل بارگذاری شده است قبل از اجرای اسکریپت ها
-
         document.getElementById('currentYear').textContent = new Date().getFullYear();
 
-        // فقط در صورتی که kamaDatepicker تعریف شده باشد، آن را مقداردهی اولیه کنید
         if (typeof kamaDatepicker === 'function') {
             kamaDatepicker('playerBirthDate', {
                 buttonsColor: "red",
@@ -391,21 +392,40 @@
                 placeholder: "مثال: ۱۴۰۲/۰۱/۱۵"
             });
         } else {
-            console.error("KamaDatepicker library is not loaded or not defined.");
-            // می توانید یک پیام به کاربر نمایش دهید یا فیلد تاریخ را به صورت عادی رها کنید
+            console.error("KamaDatepicker library is not loaded or not defined at DOMContentLoaded.");
             const playerBirthDateField = document.getElementById('playerBirthDate');
             if(playerBirthDateField) {
                 playerBirthDateField.placeholder = "YYYY/MM/DD - خطای بارگذاری تقویم";
             }
         }
 
-
         const form = document.getElementById('oqbfcForm');
         const formMessage = document.getElementById('form-message');
         const submitButton = document.getElementById('submitButton');
         const buttonText = submitButton.querySelector('.button-text');
         const registrationFormSection = document.getElementById('registration-form-section');
+        const playerNationalIdInput = document.getElementById('playerNationalId');
 
+        // کلید برای ذخیره کدهای ملی در localStorage
+        const REGISTERED_IDS_KEY = 'oqbfc_registered_national_ids';
+
+        function getRegisteredIds() {
+            const ids = localStorage.getItem(REGISTERED_IDS_KEY);
+            return ids ? JSON.parse(ids) : [];
+        }
+
+        function addRegisteredId(nationalId) {
+            const ids = getRegisteredIds();
+            if (!ids.includes(nationalId)) {
+                ids.push(nationalId);
+                localStorage.setItem(REGISTERED_IDS_KEY, JSON.stringify(ids));
+            }
+        }
+
+        function isIdRegistered(nationalId) {
+            const ids = getRegisteredIds();
+            return ids.includes(nationalId);
+        }
 
         function smoothScrollTo(element, offset = 0) {
             if (element) {
@@ -419,7 +439,6 @@
             }
         }
 
-
         form.addEventListener('submit', async function(event) {
             event.preventDefault(); 
             
@@ -427,6 +446,7 @@
             submitButton.disabled = true; 
             buttonText.textContent = 'در حال ارسال...'; 
             formMessage.style.display = 'none'; 
+            playerNationalIdInput.classList.remove('error-border'); // حذف بردر خطا از کد ملی در هر بار ارسال
 
 
             let isValid = true;
@@ -434,8 +454,7 @@
             requiredInputs.forEach(input => {
                 input.style.borderColor = '#444444'; 
                 let valueToTest = input.value;
-                // برای فیلد تاریخ، اگر kamaDatepicker متصل است، از مقدار آن استفاده کنید
-                if (input.id === 'playerBirthDate' && typeof input.kamadatepicker !== 'undefined' && input.kamadatepicker.getValue) {
+                if (input.id === 'playerBirthDate' && typeof input.kamadatepicker !== 'undefined' && input.kamadatepicker && typeof input.kamadatepicker.getValue === 'function') {
                      valueToTest = input.kamadatepicker.getValue();
                 }
                 if ((!valueToTest || !valueToTest.trim()) && input.type !== 'checkbox') {
@@ -462,11 +481,27 @@
                 buttonText.textContent = 'ارسال اطلاعات و تکمیل ثبت نام';
                 return;
             }
+
+            // بررسی تکراری بودن کد ملی
+            const nationalId = playerNationalIdInput.value.trim();
+            if (isIdRegistered(nationalId)) {
+                formMessage.innerHTML = `<strong>خطا!</strong> کد ملی <span dir="ltr" class="font-mono">${nationalId}</span> قبلاً ثبت نام شده است. لطفاً با پشتیبانی تماس بگیرید.`;
+                formMessage.className = 'error';
+                formMessage.style.display = 'block';
+                playerNationalIdInput.classList.add('error-border'); // افزودن بردر قرمز به فیلد کد ملی
+                playerNationalIdInput.focus();
+                smoothScrollTo(formMessage, 20);
+
+                submitButton.classList.remove('loading');
+                submitButton.disabled = false;
+                buttonText.textContent = 'ارسال اطلاعات و تکمیل ثبت نام';
+                return; 
+            }
             
             const formData = new FormData(form);
 
             try {
-                const response = await fetch('https://formspree.io/f/xqabkper', {
+                const response = await fetch('https://formspree.io/f/xqabkper', { // آدرس Formspree شما
                     method: 'POST',
                     body: formData,
                     headers: {
@@ -477,10 +512,13 @@
                 if (response.ok) {
                     formMessage.innerHTML = `<strong>تبریک! ثبت نام شما با موفقیت انجام شد.</strong><br>به خانواده بزرگ عقاب قشقایی خوش آمدید! همکاران ما به زودی از طریق ایمیل یا شماره تماس با شما در ارتباط خواهند بود. منتظر دیدارتان در زمین هستیم! 🦅`;
                     formMessage.className = 'success'; 
+                    
+                    addRegisteredId(nationalId); // ذخیره کد ملی پس از ثبت نام موفق
+
                     form.reset(); 
-                    if (typeof kamaDatepicker === 'function' && typeof playerBirthDate.kamadatepicker !== 'undefined') {
+                    if (typeof kamaDatepicker === 'function' && typeof playerBirthDate.kamadatepicker !== 'undefined' && playerBirthDate.kamadatepicker && typeof playerBirthDate.kamadatepicker.destroy === 'function') {
                         playerBirthDate.kamadatepicker.destroy(); 
-                        kamaDatepicker('playerBirthDate', { // Reinitialize after reset
+                        kamaDatepicker('playerBirthDate', { 
                             buttonsColor: "red", forceFarsiDigits: true, markToday: true, markHolidays: true,
                             highlightSelectedDay: true, syncKeywordsInput: true, gotoToday: true,
                             pastYearsCount: 80, futureYearsCount: 0, placeholder: "مثال: ۱۴۰۲/۰۱/۱۵"
@@ -512,7 +550,7 @@
                 buttonText.textContent = 'ارسال اطلاعات و تکمیل ثبت نام';
             }
         });
-    }); // End of DOMContentLoaded listener
+    }); 
     </script>
 
 </body>
